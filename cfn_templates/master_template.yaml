@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Core template. Contains network and iam roles
+Description: Deploys a studio domain with 5 users and a jupyter server and kernel gateway app for each user
 Parameters:
   KernelImageArn:
     Type: String
@@ -88,6 +88,7 @@ Resources:
           - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
           - arn:aws:iam::aws:policy/AmazonS3FullAccess
           - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+          - arn:aws:iam::aws:policy/IAMReadOnlyAccess
 
   SageMakerDomain:
     Type: AWS::SageMaker::Domain
