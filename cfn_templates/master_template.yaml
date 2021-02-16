@@ -1,0 +1,254 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Core template. Contains network and iam roles
+Parameters:
+  KernelImageArn:
+    Type: String
+    Default: 'arn:aws:sagemaker:us-east-1:081325390199:image/datascience-1.0'
+  InstanceType:
+    Type: String
+    AllowedValues: ['ml.t3.medium', 'ml.m5.large', 'ml.c5.large', 'ml.g4dn.xlarge']
+    Default: 'ml.t3.medium'
+
+Resources:
+  Vpc:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+      Tags:
+        - Key: 'Name'
+          Value: 'sagemaker_vpc'
+
+  PublicSubnet:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      CidrBlock: !Select [ 0, !Cidr [ !GetAtt Vpc.CidrBlock, 1, 8 ]]
+      VpcId: !Ref Vpc
+      MapPublicIpOnLaunch: True
+      AvailabilityZone: !Select
+        - 0
+        - Fn::GetAZs: !Ref "AWS::Region"
+      Tags:
+        - Key: 'Name'
+          Value: 'public-subnet01' 
+
+  Igw:
+    Type: "AWS::EC2::InternetGateway"
+
+  IgwToVpcAttachment:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      InternetGatewayId: !Ref Igw
+      VpcId: !Ref Vpc
+
+  NatEip:
+    Type: "AWS::EC2::EIP"
+
+  NatGw:
+    Type: "AWS::EC2::NatGateway"
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnet
+
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref Vpc
+
+  PublicRoute:
+    DependsOn: IgwToVpcAttachment
+    Type: "AWS::EC2::Route"
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Igw
+
+  PubSubRtAttachment:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnet
+
+
+  SageMakerExecutionRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - sagemaker.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        Path: /service-role/
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/AmazonAthenaFullAccess
+
+  SageMakerDomain:
+    Type: AWS::SageMaker::Domain
+    Properties: 
+      AppNetworkAccessType: "PublicInternetOnly"
+      AuthMode: "IAM"
+      DefaultUserSettings: 
+        ExecutionRole: !GetAtt SageMakerExecutionRole.Arn 
+      DomainName: "studio-domain"
+      SubnetIds: 
+        - !Ref PublicSubnet
+      VpcId: !Ref Vpc
+
+  StudioUser1:
+    Type: AWS::SageMaker::UserProfile
+    Properties: 
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Sub 'User-${AWS::AccountId}-1'
+      UserSettings:
+        ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+
+  StudioUser2:
+    Type: AWS::SageMaker::UserProfile
+    Properties: 
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Sub 'User-${AWS::AccountId}-2'
+      UserSettings:
+        ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+
+  StudioUser3:
+    Type: AWS::SageMaker::UserProfile
+    Properties: 
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Sub 'User-${AWS::AccountId}-3'  
+      UserSettings:
+        ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+
+  StudioUser4:
+    Type: AWS::SageMaker::UserProfile
+    Properties: 
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Sub 'User-${AWS::AccountId}-4'  
+      UserSettings:
+        ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+
+  StudioUser5:
+    Type: AWS::SageMaker::UserProfile
+    Properties: 
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Sub 'User-${AWS::AccountId}-5'  
+      UserSettings:
+        ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+  
+  JupyterServer1:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "default"
+      AppType: "JupyterServer"
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser1]]
+
+  KernelGateway1:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "user-1-kernel"
+      AppType: "KernelGateway"
+      DomainId: !Ref SageMakerDomain
+      ResourceSpec:
+        InstanceType: !Ref InstanceType
+        SageMakerImageArn: !Ref KernelImageArn
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser1]]
+
+  JupyterServer2:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "default"
+      AppType: "JupyterServer"
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser2]]
+
+  KernelGateway2:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "user-2-kernel"
+      AppType: "KernelGateway"
+      DomainId: !Ref SageMakerDomain
+      ResourceSpec:
+        InstanceType: !Ref InstanceType
+        SageMakerImageArn: !Ref KernelImageArn
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser2]]
+
+  JupyterServer3:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "default"
+      AppType: "JupyterServer"
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser3]]
+
+  KernelGateway3:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "user-3-kernel"
+      AppType: "KernelGateway"
+      DomainId: !Ref SageMakerDomain
+      ResourceSpec:
+        InstanceType: !Ref InstanceType
+        SageMakerImageArn: !Ref KernelImageArn
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser3]]
+
+  JupyterServer4:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "default"
+      AppType: "JupyterServer"
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser4]]
+
+  KernelGateway4:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "user-4-kernel"
+      AppType: "KernelGateway"
+      DomainId: !Ref SageMakerDomain
+      ResourceSpec:
+        InstanceType: !Ref InstanceType
+        SageMakerImageArn: !Ref KernelImageArn
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser4]]
+
+  JupyterServer5:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "default"
+      AppType: "JupyterServer"
+      DomainId: !Ref SageMakerDomain
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser5]]
+
+  KernelGateway5:
+    Type: AWS::SageMaker::App
+    Properties: 
+      AppName: "user-5-kernel"
+      AppType: "KernelGateway"
+      DomainId: !Ref SageMakerDomain
+      ResourceSpec:
+        InstanceType: !Ref InstanceType
+        SageMakerImageArn: !Ref KernelImageArn
+      UserProfileName: !Select [0, !Split ["|", !Ref StudioUser5]]
+
+Outputs:
+
+  VpcId:
+    Value: !Ref Vpc
+    Export:
+      Name: VpcId
+
+  PublicSubnetId:
+    Value: !Ref PublicSubnet
+    Export:
+      Name: PublicSubnetId
+    
+  VpcId:
+    Value: !Ref SageMakerDomain
+    Export:
+      Name: SageMakerDomainId
