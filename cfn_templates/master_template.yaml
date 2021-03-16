@@ -84,6 +84,7 @@ Resources:
               Action:
                 - sts:AssumeRole
         Path: /service-role/
+        RoleName: AmazonSageMaker-ExecutionRole-${AWS::AccountId}
         ManagedPolicyArns:
           - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
           - arn:aws:iam::aws:policy/AmazonS3FullAccess
